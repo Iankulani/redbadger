@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  redbadger:
+    build: .
+    container_name: redbadger-security
+    hostname: redbadger
+    restart: unless-stopped
+    ports:
+      - "5000:5000"      # Web interface
+      - "8080:8080"      # Phishing simulation server
+    volumes:
+      # Persistent data
+      - redbadger-data:/app/.redbadger
+      - redbadger-reports:/app/redbadger_reports
+      # Optional: Mount config for customization
+      - ./config:/app/config:ro
+    environment:
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+      - REDBADGER_ENV=production
+    cap_add:
+      - NET_ADMIN        # For firewall rules
+      - NET_RAW          # For raw sockets
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - redbadger-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Redis for session management
+  redis:
+    image: redis:7-alpine
+    container_name: redbadger-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - redbadger-network
+    command: redis-server --appendonly yes
+
+  # Optional: PostgreSQL for production database
+  postgres:
+    image: postgres:16-alpine
+    container_name: redbadger-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=redbadger
+      - POSTGRES_USER=redbadger
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - redbadger-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U redbadger"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  redbadger-network:
+    driver: bridge
+
+volumes:
+  redbadger-data:
+  redbadger-reports:
+  redis-data:
+  postgres-data:

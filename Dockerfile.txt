@@ -1,0 +1,75 @@
+# Multi-stage build for RedBadger Security Platform
+FROM alpine:3.19 AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    gcc \
+    python3-dev \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    nmap \
+    nmap-scripts \
+    whois \
+    bind-tools \
+    iptables \
+    sudo
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r requirements.txt
+
+# Final stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    nmap \
+    nmap-scripts \
+    whois \
+    bind-tools \
+    iptables \
+    sudo \
+    tcpdump \
+    traceroute
+
+# Create non-root user
+RUN addgroup -g 1000 redbadger && \
+    adduser -D -u 1000 -G redbadger redbadger
+
+# Copy Python packages from builder
+COPY --from=builder /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
+COPY --from=builder /usr/bin /usr/bin
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY --chown=redbadger:redbadger redbadger.py .
+COPY --chown=redbadger:redbadger requirements.txt .
+
+# Create necessary directories
+RUN mkdir -p .redbadger redbadger_reports && \
+    chown -R redbadger:redbadger .redbadger redbadger_reports
+
+# Expose ports
+EXPOSE 5000 8080
+
+# Switch to non-root user
+USER redbadger
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:5000')" || exit 1
+
+# Run the application
+ENTRYPOINT ["python3", "redbadger.py"]
+CMD []

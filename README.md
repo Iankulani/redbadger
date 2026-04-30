@@ -108,3 +108,8 @@ Whether you're conducting red team exercises, defending enterprise networks, res
 
 # REDBADGER: Dig Deep. Hunt Threats. Stay Secure. 🦡⚡
 
+
+# Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Iankulani/redbadger&type=Date)](https://star-history.com/#Iankulani/redbadger&Date)
+
